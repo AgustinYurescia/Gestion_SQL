@@ -118,27 +118,17 @@ select	per.dni,
         where con.sueldo > promedios.prom*/
 
 /*#Ejercicio 8#
-drop temporary table if exists cp;
+select max(com.importe_comision), min(com.importe_comision) into @maxcom, @mincom
+from comisiones as com;
 
-create temporary table cp
-select 	e.cuit,
-		e.razon_social,
-        avg(co.importe_comision) as prom
-		from empresas as e
-		inner join contratos as con
-		on e.cuit=con.cuit
-		inner join comisiones as co
-		on con.nro_contrato=co.nro_contrato
-		group by e.cuit,e.razon_social;
-		
-select 	max(prom), 
-		min(prom) 
-		into @maxi,@mini
-		from cp;
-
-select 	cp.*
-		from cp
-		where cp.prom in (@maxi,@mini)*/
+select emp.razon_social, avg(com.importe_comision) as PromedioComisiones
+from empresas as emp
+inner join contratos as con
+on emp.cuit = con.cuit
+inner join comisiones as com
+on con.nro_contrato = com.nro_contrato
+group by 1
+having avg(com.importe_comision) in (@maxcom,@mincom)*/
 
 /*#Ejercicio 9#
 select 	count(*) into @cant_ins

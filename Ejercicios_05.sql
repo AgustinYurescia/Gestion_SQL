@@ -147,21 +147,14 @@ select	alu.*,
         having count(*) > @cant_ins*/
         
 /*#Ejercicio 10#
-select	count(*) into @total_ins
-		from plan_capacitacion as pla
-        inner join inscripciones as ins
-        on pla.nom_plan = ins.nom_plan
-        where year(ins.fecha_inscripcion) = 2014;
+select count(*) into @cantidadins
+from inscripciones as ins
+where year(ins.fecha_inscripcion) = 2014;
 
-select	pla.nom_plan as Plan,
-		count(*) as 'Cantidad de inscriptos',
-        @total_ins,
-        count(*) * 100 / @total_ins as '% Sobre el total'
-		from plan_capacitacion as pla
-        inner join inscripciones as ins
-        on pla.nom_plan = ins.nom_plan
-        where year(ins.fecha_inscripcion) = 2014
-        group by pla.nom_plan*/
+select ins.nom_plan, count(*) as CantidadInscriptos, round(count(*) * 100 / @cantidadins,2) as PorcentajeSobreTotal
+from inscripciones as ins
+where year(ins.fecha_inscripcion) = 2014
+group by 1*/
 
 /*#Ejercicio 11#
 drop temporary table if exists valores;

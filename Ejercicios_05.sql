@@ -73,37 +73,27 @@ select	emp.razon_social,
         where com.importe_comision < @promedioCom and com.fecha_pago is not null*/
         
 /*#Ejercicio 5#
-drop temporary table if exists cp;
+select max(com.importe_comision), min(com.importe_comision) into @maxCom, @minCom
+from comisiones as com;
 
-create temporary table cp
-select 	e.cuit,
-		e.razon_social,
-        avg(co.importe_comision) as prom
-		from empresas as e
-		inner join contratos as con
-		on e.cuit=con.cuit
-		inner join comisiones as co
-		on con.nro_contrato=co.nro_contrato
-		group by e.cuit,e.razon_social;
-		
-select 	max(prom), 
-		min(prom) 
-		into @maxi,@mini
-		from cp;
-
-select 	cp.*
-		from cp
-		where cp.prom in (@maxi,@mini)*/
+select emp.razon_social, avg(com.importe_comision) as PromedioComision
+from empresas as emp
+inner join contratos as con
+on emp.cuit = con.cuit
+inner join comisiones as com
+on con.nro_contrato = com.nro_contrato
+group by 1
+having avg(com.importe_comision) in (@maxCom,@minCom);*/
 
 /*#Ejercicio 6#
 select	per.dni,
-		per.apellido,
+	per.apellido,
         per.nombre
-		from personas as per
+	from personas as per
         where per.dni not in (select 	pt.dni
-										from personas_titulos as pt
+					from personas_titulos as pt
                                         inner join titulos as tit
-										on pt.cod_titulo = tit.cod_titulo
+					on pt.cod_titulo = tit.cod_titulo
                                         where tit.tipo_titulo in ('Educacion no formal','Terciario'))*/
 
 /*#Ejercicio 7#
@@ -241,12 +231,12 @@ select 	curi.cuil
 
 /*#Ejercicio 14#
 select	*
-		from alumnos 
-        where dni not in (select	cuo.dni
-									from inscripciones as ins
-                                    inner join cuotas as cuo
-                                    on ins.nom_plan=cuo.nom_plan and ins.nro_curso = cuo.nro_curso and ins.dni = cuo.dni
-                                    where cuo.fecha_pago is null)*/
+	from alumnos 
+        where dni not in (select cuo.dni
+				 from inscripciones as ins
+                                 inner join cuotas as cuo
+                                 on ins.nom_plan=cuo.nom_plan and ins.nro_curso = cuo.nro_curso and ins.dni = cuo.dni
+                                 where cuo.fecha_pago is null)*/
 
 /*#Ejercicio 15#
 drop temporary table if exists promediosCursos;

@@ -159,67 +159,56 @@ group by 1*/
 /*#Ejercicio 11#
 drop temporary table if exists valores;
 create temporary table valores
-select	val.nom_plan as Plan,
-		max(val.fecha_desde_plan) as Fecha
-		from valores_plan as val
-        group by val.nom_plan;
+select	val.nom_plan as Plan, max(val.fecha_desde_plan) as Fecha
+from valores_plan as val
+group by val.nom_plan;
 
-select	val.nom_plan,
-		val.fecha_desde_plan,
-        val.valor_plan
-		from valores_plan as val
-        inner join valores
-        on val.nom_plan = valores.Plan
-        where val.fecha_desde_plan >= valores.Fecha*/
+select	val.nom_plan, val.fecha_desde_plan, val.valor_plan
+from valores_plan as val
+inner join valores
+on val.nom_plan = valores.Plan and val.fecha_desde_plan = valores.Fecha*/
 
 /*#Ejercicio 12#
 drop temporary table if exists valores;
 create temporary table valores
-select	val.nom_plan as Plan,
-		max(val.fecha_desde_plan) as Fecha
-		from valores_plan as val
-        group by val.nom_plan;
+select	val.nom_plan as Plan, max(val.fecha_desde_plan) as Fecha
+from valores_plan as val
+group by val.nom_plan;
 
 select	min(val.valor_plan) into @minValor
-		from valores_plan as val
-        inner join valores
-        on val.nom_plan = valores.Plan
-        where val.fecha_desde_plan >= valores.Fecha;
+from valores_plan as val
+inner join valores
+on val.nom_plan = valores.Plan and val.fecha_desde_plan = valores.Fecha;
 
-select	pla.*,
-		val.fecha_desde_plan,
-        val.valor_plan
-		from valores_plan as val
-        inner join valores
-        on val.nom_plan = valores.Plan
-        inner join plan_capacitacion as pla
-        on val.nom_plan = pla.nom_plan
-        where val.fecha_desde_plan >= valores.Fecha and val.valor_plan = @minValor*/
+select	pla.*, val.fecha_desde_plan, val.valor_plan
+from valores_plan as val
+inner join valores
+on val.nom_plan = valores.Plan
+inner join plan_capacitacion as pla
+on val.nom_plan = pla.nom_plan and val.fecha_desde_plan = valores.Fecha
+where val.valor_plan = @minValor*/
 
 /*#Ejercicio 13#
-drop temporary table if exists inst;
-
-create temporary table inst
-select 	curi.cuil as cuil
-		from cursos_instructores as curi
-        inner join cursos as cur
-        on curi.nom_plan = cur.nom_plan and curi.nro_curso = cur.nro_curso
-        where cur.nom_plan = 'Marketing 1' and year(cur.fecha_ini) = 2015;
-
-select 	curi.cuil
-		from cursos_instructores as curi
-        inner join cursos as cur
-        on curi.nom_plan = cur.nom_plan and curi.nro_curso = cur.nro_curso
-        where cur.nom_plan = 'Marketing 1' and year(cur.fecha_ini) = 2014 and curi.cuil not in (select inst.cuil from inst)*/
+select ci.cuil
+from cursos_instructores as ci
+inner join cursos as cur
+on ci.nro_curso = cur.nro_curso and ci.nom_plan = cur.nom_plan
+where cur.nom_plan = "Marketing 1" and year(cur.fecha_ini) = 2014 and ci.cuil not in (
+	select ci.cuil
+	from cursos_instructores as ci
+	inner join cursos as cur
+	on ci.nro_curso = cur.nro_curso and ci.nom_plan = cur.nom_plan
+	where cur.nom_plan = "Marketing 1" and year(cur.fecha_ini) = 2015)*/
 
 /*#Ejercicio 14#
 select	*
-	from alumnos 
-        where dni not in (select cuo.dni
-				 from inscripciones as ins
-                                 inner join cuotas as cuo
-                                 on ins.nom_plan=cuo.nom_plan and ins.nro_curso = cuo.nro_curso and ins.dni = cuo.dni
-                                 where cuo.fecha_pago is null)*/
+from alumnos 
+where dni not in (
+	select distinct ins.dni
+	from inscripciones as ins
+	inner join cuotas as cuo
+	on ins.dni = cuo.dni
+	where cuo.fecha_pago is null);*/
 
 /*#Ejercicio 15#
 drop temporary table if exists promediosCursos;
@@ -245,26 +234,18 @@ select	alu.nombre,
 /*#Ejercicio 16 Dudas#
 drop temporary table if exists cur_ins;
 create temporary table cur_ins
-select 	cur.nro_curso as Curso,
-		cur.nom_plan as Plan,
-		count(ins.dni) as Cantidad
-		from cursos as cur
-        inner join inscripciones as ins
-        on cur.nro_curso = ins.nro_curso and cur.nom_plan = ins.nom_plan
-        where cur.fecha_ini >= '2014-04-01' 
-        group by cur.nro_curso, cur.nom_plan;
+select 	cur.nro_curso as Curso, cur.nom_plan as Plan, count(ins.dni) as Cantidad
+from cursos as cur
+inner join inscripciones as ins
+on cur.nro_curso = ins.nro_curso and cur.nom_plan = ins.nom_plan
+where cur.fecha_ini >= '2014-04-01' 
+group by cur.nro_curso, cur.nom_plan;
         
-select 	cur.nom_plan,
-		cur.nro_curso,
-        cur.fecha_ini,
-        cur.salon,
-        cur.cupo,
-        cur_ins.Cantidad,
-        cur.cupo - cur_ins.Cantidad
-		from cursos as cur
-        inner join cur_ins
-        on cur.nro_curso = cur_ins.Curso and cur.nom_plan = cur_ins.Plan
-        where (cur_ins.Cantidad / cur.cupo * 100) < 80*/
+select 	cur.nom_plan, cur.nro_curso, cur.fecha_ini, cur.salon, cur.cupo, cur_ins.Cantidad, cur.cupo - cur_ins.Cantidad
+from cursos as cur
+inner join cur_ins
+on cur.nro_curso = cur_ins.Curso and cur.nom_plan = cur_ins.Plan
+where (cur_ins.Cantidad / cur.cupo * 100) < 80*/
 
 /*#Ejercicio 17 Muchas dudas#
 drop temporary table if exists ult_inc;

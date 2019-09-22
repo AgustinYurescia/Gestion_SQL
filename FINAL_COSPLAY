@@ -1,0 +1,87 @@
+#----------EJERCICIO 1----------#
+Desarrolle las sentencias DDL requeridas para completar la definición de las tablas EMPLEADO, COSTO_HORA_ARTESANO y ESPECIALIDAD y sus 
+relaciones con otras tablas.
+
+CREATE TABLE `cosplay`.`empleado` (
+  `legajo` INT(11) NOT NULL,
+  `tipo` VARCHAR(45) NULL,
+  `email` VARCHAR(255) NULL,
+  `direccion` VARCHAR(255) NULL,
+  `telefono` VARCHAR(20) NULL,
+  `apellido` VARCHAR(45) NULL,
+  `nombre` VARCHAR(45) NULL,
+  `cuil` VARCHAR(15) NULL,
+  PRIMARY KEY (`legajo`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
+
+CREATE TABLE `cosplay`.`coto_hora_artesano` (
+  `legajo_empleado` INT(11) NOT NULL,
+  `fecha_valor` DATE NOT NULL,
+  `valor_hora` DECIMAL(9,3) NULL,
+  PRIMARY KEY (`legajo_empleado`, `fecha_valor`),
+  CONSTRAINT `fk_cha_empleado`
+    FOREIGN KEY (`legajo_empleado`)
+    REFERENCES `cosplay`.`empleado` (`legajo`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
+
+CREATE TABLE `cosplay`.`especialidad` (
+  `codigo_especialidad` INT(11) NOT NULL,
+  `desc_especialidad` VARCHAR(255) NULL,
+  PRIMARY KEY (`codigo_especialidad`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
+
+CREATE TABLE `cosplay`.`artesano_especialidad` (
+  `legajo_empleado` INT(11) NOT NULL,
+  `cod_especialidad` INT(11) NOT NULL,
+  PRIMARY KEY (`legajo_empleado`, `cod_especialidad`),
+  INDEX `fk_ae_especialidad_idx` (`cod_especialidad` ASC),
+  CONSTRAINT `fk_ae_empleado`
+    FOREIGN KEY (`legajo_empleado`)
+    REFERENCES `cosplay`.`empleado` (`legajo`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_ae_especialidad`
+    FOREIGN KEY (`cod_especialidad`)
+    REFERENCES `cosplay`.`especialidad` (`codigo_especialidad`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
+
+
+
+#----------EJERCICIO 1----------#
+Ranking de clientes. Indicar: Número de cliente, cuil/cuit, nombre, email, cantidad de trabajos encargados y sumatoria de importes 
+presupuestados. Ordenar sumatoria de importes en forma descendente y por cantidad de trabajos en forma ascendente.
+
+#----------EJERCICIO 3----------#
+Lista de costo de materiales. Indicar código del material, descripción, unidad de medida, color  y valor actual.
+
+#----------EJERCICIO 4----------#
+Trabajos pendientes: Listar los trabajos que no estén terminados al día de hoy. Indicar número de trabajo, fecha límite de confección, 
+importe presupuestado, y para cada ítem del trabajo que no esté finalizado indicar el número de ítem, el detalle, y por cada tarea no 
+completada el código del tipo de tarea, detalle de la tarea fecha y hora de inicio, horas estimadas y sumatoria de horas reales trabajadas 
+para dicha tarea.
+
+#----------EJERCICIO 5----------#
+Artesanos excediendo el máximo de horas al mes: realizar un procedimiento almacenado que calcule las horas trabajadas reales totales por 
+artesano en el mes (usando la fecha de inicio) y liste aquellos que exceden el máximo de horas que deberían haber trabajado en el mes. El 
+procedimiento almacenado debe recibir como parámetros el mes, el año y el máximo de horas. Debe listar los artesanos indicando legajo, 
+cuil, nombre, apellido, descripción de la especialidad, cantidad total de horas trabajadas y horas excedidas. Al finalizar invocar el 
+procedimiento. Para realizar pruebas usar Octubre de 2018 y 10 hs
+
+#----------EJERCICIO 6----------#
+Actualización de precios: Debido al aumento en los costos de los proveedores, la empresa debe actualizar los costos de los materiales. 
+El aumento regirá a partir del lunes próximo. El aumento en los materiales será de un 30% a los que tengan un importe menor a $2000 y de 
+20% a los que tengan un importe mayor o igual a $2000.
+
+

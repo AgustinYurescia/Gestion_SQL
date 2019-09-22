@@ -1,0 +1,122 @@
+#----------EJERCICIO 1----------#
+Desarrolle las sentencias DDL requeridas para completar la definición de la tabla CONTRATA
+
+ALTER TABLE `va_alquileres`.`contrata` 
+ADD COLUMN `cuil` VARCHAR(20) NULL AFTER `CodServicio`,
+ADD PRIMARY KEY (`NroEvento`, `CodInstalacion`, `fechadesde`, `horadesde`, `CodServicio`),
+ADD INDEX `fk_c_servicios_idx` (`CodServicio` ASC),
+ADD INDEX `fk_c_empleados_idx` (`cuil` ASC);
+;
+ALTER TABLE `va_alquileres`.`contrata` 
+ADD CONSTRAINT `fk_c_servicios`
+  FOREIGN KEY (`CodServicio`)
+  REFERENCES `va_alquileres`.`servicios` (`CodServicio`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_c_instalaciones_eventos`
+  FOREIGN KEY (`NroEvento` , `CodInstalacion` , `fechadesde` , `horadesde`)
+  REFERENCES `va_alquileres`.`instalaciones_eventos` (`NroEvento` , `CodInstalacion` , `fechadesde` , `horadesde`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_c_empleados`
+  FOREIGN KEY (`cuil`)
+  REFERENCES `va_alquileres`.`empleados` (`cuil`)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE;
+
+#----------EJERCICIO 2----------#
+Indicar por empleado la cantidad de eventos que tuvo como coordinador. Mostrar CUIL, apellido, nombres y cantidad de eventos. 
+Aquellos empleados que no fueron coordinadores en ningún evento indicar 0.
+
+select emp.cuil, emp.apellido, emp.nombre, count(ev.CuilEmpleado) as CantidadEventos
+from empleados as emp
+left join eventos as ev
+on emp.cuil = ev.CuilEmpleado
+group by 1,2,3
+
+#----------EJERCICIO 3----------#
+Ranking de servicios contratados indicando: datos del servicio, suma de la cantidad del servicio contratado para todos los eventos y 
+porcentaje de esta suma sobre la suma total de las cantidades de servicios contratados. Los servicios que no hayan sido contratados 
+deberán figurar en la lista con cantidad total 0. Ordenar el ranking en forma descendente por porcentaje.
+
+select sum(cantidad) into @cantidadservcont
+from contrata as con;
+
+select 	ser.CodServicio, 
+		ser.DescServicio, 
+        ifnull(sum(con.cantidad),0) as CantidadContratada, 
+        round((ifnull(sum(con.cantidad),0) * 100 / @cantidadservcont),2) as "%SobreTotal"
+from servicios as ser
+left join contrata as con
+on ser.CodServicio = con.CodServicio
+group by 1,2
+order by 3 desc;
+
+#----------EJERCICIO 4----------#
+Calcular el total a pagar del Evento 5. El total debe incluir: la suma de los valores pactados por las instalaciones más la suma de los 
+totales de servicios contratados. NOTA: el total de un servicio se calcula como la cantidad del servicio contratada por el valor del 
+servicio a la fecha del contrato del evento.
+
+select fechacontrato into @fechaevento
+from eventos
+where NroEvento = 5;
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select vs.CodServicio, max(vs.fechadesde) as fecha
+from valores_servicios as vs
+where vs.fechadesde <= @fechaevento
+group by 1;
+
+select sum(iev.valorpactado) into @importeinstalaciones
+from instalaciones_eventos as iev
+where iev.NroEvento = 5;
+
+select sum(vs.valor * con.cantidad) into @importeservicios
+from contrata as con
+inner join valores_servicios as vs
+on con.CodServicio = vs.CodServicio
+inner join ultfec as ult
+on con.CodServicio = ult.CodServicio and vs.fechadesde = ult.fecha
+where con.NroEvento=5;
+
+select round(@importeinstalaciones + @importeservicios,2) as ImporteTotalEvento5;
+
+#----------EJERCICIO 5----------#
+STORE PROCEDURE (SP): Desarrollar un SP que dada una nueva descripción de un tipo de evento lo registre en la tabla correspondiente 
+manteniendo la correlatividad de los códigos de tipos de evento
+
+use `va_alquileres`;
+drop procedure if exists `agregar_nuevo_tev`;
+
+delimiter $$
+use `va_alquileres`$$
+create procedure `agregar_nuevo_tev`(in descripcion varchar(20))
+begin
+select max(te.CodTipoEvento) into @ultcodte
+from tipos_evento as te;
+
+insert into tipos_evento(CodTipoEvento,DescTipoEvento)
+values (@ultcodte + 1, descripcion);
+end$$
+delimiter ;
+
+#----------EJERCICIO 6----------#
+Registrar los nuevos valores de servicios para la fecha de hoy en función de su valor anterior más un 20%.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select vs.CodServicio, max(vs.fechadesde) as fecha
+from valores_servicios as vs
+where vs.fechadesde <= curren_date
+group by 1;
+
+start transaction;
+
+insert into valores_servicios
+select vs.CodServicio, current_date, vs.valor * 1.20
+from valores_servicios as vs
+inner join ultfec as ult
+on vs.CodServicio = ult.CodServicio and vs.fechadesde = ult.fecha;
+
+commit;

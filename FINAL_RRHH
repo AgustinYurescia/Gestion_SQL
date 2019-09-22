@@ -1,0 +1,176 @@
+#----------EJERCICIO 1----------#
+Desarrolle las sentencias DDL requeridas para completar la definición de la tabla PROCESO_SELECCION
+
+ALTER TABLE `recursos_humanos`.`proceso_seleccion` 
+CHANGE COLUMN `cod_area` `cod_area` INT(3) NOT NULL ,
+CHANGE COLUMN `cod_puesto` `cod_puesto` INT(3) NOT NULL ,
+CHANGE COLUMN `fecha_solic` `fecha_solic` DATE NOT NULL ,
+CHANGE COLUMN `tipo_doc` `tipo_doc` CHAR(7) NOT NULL ,
+CHANGE COLUMN `nro_doc` `nro_doc` INT(9) NOT NULL ,
+CHANGE COLUMN `fecha_hora` `fecha_hora` DATETIME NOT NULL ,
+ADD PRIMARY KEY (`cod_area`, `cod_puesto`, `fecha_solic`, `tipo_doc`, `nro_doc`, `fecha_hora`),
+ADD INDEX `fk_ps_empleados_idx` (`legajo` ASC),
+ADD INDEX `fk_ps_personas_idx` (`tipo_doc` ASC, `nro_doc` ASC),
+ADD INDEX `fk_ps_estados_idx` (`cod_estado` ASC);
+;
+ALTER TABLE `recursos_humanos`.`proceso_seleccion` 
+ADD CONSTRAINT `fk_ps_solicitudes_puestos`
+  FOREIGN KEY (`cod_area` , `cod_puesto` , `fecha_solic`)
+  REFERENCES `recursos_humanos`.`solicitudes_puestos` (`cod_area` , `cod_puesto` , `fecha_solic`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_ps_empleados`
+  FOREIGN KEY (`legajo`)
+  REFERENCES `recursos_humanos`.`empleados` (`legajo`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_ps_personas`
+  FOREIGN KEY (`tipo_doc` , `nro_doc`)
+  REFERENCES `recursos_humanos`.`personas` (`tipo_doc` , `nro_doc`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_ps_estados`
+  FOREIGN KEY (`cod_estado`)
+  REFERENCES `recursos_humanos`.`estados` (`cod_estado`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+  
+#----------EJERCICIO 2----------#
+Indicar de los empleados que actualmente trabajan en el área de RRHH, de cuántas personas han realizado
+registro en el proceso de selección en el presente año. Mostrar Legajo, apellido y nombres del empleado y
+cantidad de personas de las que han realizado registro en el proceso de selección. Aquellos empleados que
+actualmente trabajan en el área de RRHH y que no han hecho registro en el proceso de selección listarlos con
+cantidad en cero.
+NOTAS:
+- para saber donde trabajan los empleados actualmente buscar el último cambio de puesto del empleado a la
+fecha de hoy y luego verificar si el empleado trabaja en el área de RRHH en ese cambio.
+- para la cantidad de personas se cuentan las distintas personas para las cuales el empleado de RRHH tiene
+registros en la tabla proceso de selección.)
+
+select a.cod_area INTO @area
+FROM areas a
+where a.denominacion = 'RRHH';
+
+drop temporary table if exists TTempleados_fecha;
+create temporary table TTempleados_fecha
+select legajo, max(ep.fecha_ini) 'fecha'
+from empleados_puestos ep
+where ep.fecha_ini <= current_date()
+group by 1;
+
+SELECT tt.legajo, e.apellido, e.nombre, count(distinct(concat(ps.tipo_doc, ps.nro_doc))) cantidad
+FROM TTempleados_fecha tt 
+INNER JOIN empleados_puestos ep
+ON ep.legajo = tt.legajo
+AND ep.fecha_ini = tt.fecha
+INNER JOIN empleados e
+ON e.legajo = tt.legajo
+LEFT JOIN proceso_seleccion ps
+ON ps.legajo = tt.legajo
+WHERE ps.fecha_hora >= '01-01-2018'
+AND ep.cod_area = @area
+GROUP BY 1,2,3;
+
+#----------EJERCICIO 3----------#
+Ranking de solicitudes para puestos de trabajo indicando: código y denominación del área, código y descripción
+del puesto de trabajo, cantidad de solicitudes registradas, porcentaje de solicitudes por puesto sobre la cantidad
+total de solicitudes registradas y suma de las cantidades de puestos solicitados. Ordenar el ranking en forma
+descendente por porcentaje de solicitudes.
+NOTA: el porcentaje deberá calcularse con solo dos dígitos decimales.
+
+select count(*) into @cantidadsol
+from solicitudes_puestos as sp;
+
+select 	ar.cod_area, 
+		ar.denominacion, 
+        pt.cod_puesto, 
+        pt.descripcion, count(*) as CantiSol, 
+        round((count(*) * 100 / @cantidadsol),2) as '%SobreTotal', 
+        sum(sp.cant_puestos_solic) as CantPuestos
+from solicitudes_puestos as sp
+inner join puestos_areas as pa
+on sp.cod_area = pa.cod_area and sp.cod_puesto = pa.cod_puesto
+inner join areas as ar
+on pa.cod_area = ar.cod_area
+inner join puestos_de_trabajo as pt
+on pa.cod_puesto = pt.cod_puesto
+group by 1,2,3,4
+order by 6 desc;
+
+#----------EJERCICIO 4----------#
+STORE PROCEDURE (SP): Desarrollar un SP para el registro inicial del proceso de selección, recibiendo como
+parámetros la fecha del día y el legajo del empleado que lanza el proceso.
+Tener en cuenta que para cada solicitud de puesto de trabajo activa (no tiene fecha de cancelación) se
+deberán registrar las personas que continuarán luego el proceso de selección:
+Las personas seleccionadas:
+- No deben ser o haber sido empleados de la empresa
+- No deben estar participando ya del proceso de selección para la solicitud
+- Debe haber una coincidencia en al menos dos de las competencias requeridas para el puesto de trabajo como
+excluyentes y las competencias que la persona incluyó en su curriculum.
+Recordar que el estado para estos registros será: Iniciado.
+
+use `recursos humanos`;
+drop procedure if exists `nuevo_ps`;
+
+DELIMITER $$
+USE `recursos_humanos`$$
+create procedure `nuevo_ps`(in fecha datetime, in legajo int)
+begin 
+select cod_estado into @estado
+from estados 
+where descripcion = "iniciado";
+insert into proceso_seleccion
+select sp.cod_area, sp.cod_puesto, sp.fecha_solic, per.tipo_doc, per.nro_doc, fecha, legajo, "", @estado
+from solicitudes_puestos as sp
+inner join puestos_competencias as pc
+on sp.cod_puesto = pc.cod_puesto and sp.cod_area = pc.cod_area
+inner join competencias as com
+on pc.cod_competencia = com.cod_competencia
+inner join curriculum as cur
+on com.cod_competencia = cur.cod_competencia
+left join personas as per
+on cur.tipo_doc = per.tipo_doc and cur.nro_doc = per.nro_doc
+left join proceso_seleccion as ps
+on ps.cod_area = pc.cod_area 
+and pc.cod_puesto = pc.cod_puesto
+and sp.fecha_solic = ps.fecha_solic
+and ps.tipo_doc = cur.tipo_doc
+and ps.nro_doc = cur.nro_doc
+where sp.fecha_canc is not null
+and pc.excluyente = "SI"
+and ps.legajo is null
+and ps.nro_doc is null
+group by 1,2,3,4,5
+having count(distinct(com.cod_competencia)) >= 2;
+end$$
+delimiter ;
+
+#----------EJERCICIO 5----------#
+Registrar los nuevos valores hora para los puestos de trabajo para ser aplicados a partir del primer día del mes
+que viene. Los nuevos valores tendrán el siguiente incremento: para aquellos valores hora menores a $150 se
+realizará un incremento del 25%, para los mayores o iguales a $150 el incremento será de un 20%.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select sal.cod_area, sal.cod_puesto, max(fecha) as fecha
+from salario as sal
+where fecha <= current_date
+group by 1,2,3;
+
+start transaction;
+
+insert into salario
+select sal.cod_area, sal.cod_puesto, '2019-10-01', sal.valor_hora*1.2
+from salario as sal
+inner join ultfec as ult
+on sal.cod_area = ult.cod_area and sal.cod_puesto = ult.cod_puesto and sal.fecha = ult.fecha
+where sal.valor_hora >= 150;
+
+insert into salario
+select sal.cod_area, sal.cod_puesto, '2019-10-01', sal.valor_hora*1.25
+from salario as sal
+inner join ultfec as ult
+on sal.cod_area = ult.cod_area and sal.cod_puesto = ult.cod_puesto and sal.fecha = ult.fecha
+where sal.valor_hora < 150;
+
+commit;

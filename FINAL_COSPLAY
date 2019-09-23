@@ -16,7 +16,7 @@ ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8
 COLLATE = utf8_bin;
 
-CREATE TABLE `cosplay`.`coto_hora_artesano` (
+CREATE TABLE `cosplay`.`costo_hora_artesano` (
   `legajo_empleado` INT(11) NOT NULL,
   `fecha_valor` DATE NOT NULL,
   `valor_hora` DECIMAL(9,3) NULL,
@@ -31,46 +31,131 @@ DEFAULT CHARACTER SET = utf8
 COLLATE = utf8_bin;
 
 CREATE TABLE `cosplay`.`especialidad` (
-  `codigo_especialidad` INT(11) NOT NULL,
-  `desc_especialidad` VARCHAR(255) NULL,
-  PRIMARY KEY (`codigo_especialidad`))
+  `codigo` INT(11) NOT NULL,
+  `descripcion` VARCHAR(55) NULL,
+  PRIMARY KEY (`codigo`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8
 COLLATE = utf8_bin;
 
 CREATE TABLE `cosplay`.`artesano_especialidad` (
-  `legajo_empleado` INT(11) NOT NULL,
-  `cod_especialidad` INT(11) NOT NULL,
-  PRIMARY KEY (`legajo_empleado`, `cod_especialidad`),
-  INDEX `fk_ae_especialidad_idx` (`cod_especialidad` ASC),
+  `legajo_artesano` INT(11) NOT NULL,
+  `codigo_especialidad` INT(11) NOT NULL,
+  PRIMARY KEY (`legajo_artesano`, `codigo_especialidad`),
+  INDEX `fk_ae_especialidad_idx` (`codigo_especialidad` ASC),
   CONSTRAINT `fk_ae_empleado`
-    FOREIGN KEY (`legajo_empleado`)
+    FOREIGN KEY (`legajo_artesano`)
     REFERENCES `cosplay`.`empleado` (`legajo`)
     ON DELETE RESTRICT
     ON UPDATE CASCADE,
   CONSTRAINT `fk_ae_especialidad`
-    FOREIGN KEY (`cod_especialidad`)
-    REFERENCES `cosplay`.`especialidad` (`codigo_especialidad`)
+    FOREIGN KEY (`codigo_especialidad`)
+    REFERENCES `cosplay`.`especialidad` (`codigo`)
     ON DELETE RESTRICT
     ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8
 COLLATE = utf8_bin;
 
+CREATE TABLE `cosplay`.`ejecucion_tarea` (
+  `nro_trabajo` INT(11) NOT NULL,
+  `nro_item` INT(11) NOT NULL,
+  `codigo_tipo_tarea` INT(11) NOT NULL,
+  `legajo_artesano` INT(11) NOT NULL,
+  `hs_trabajdas_reales` DECIMAL(4,2) NULL,
+  PRIMARY KEY (`nro_trabajo`, `nro_item`, `codigo_tipo_tarea`, `legajo_artesano`),
+  INDEX `fk_et_empleado_idx` (`legajo_artesano` ASC),
+  CONSTRAINT `fk_et_empleado`
+    FOREIGN KEY (`legajo_artesano`)
+    REFERENCES `cosplay`.`empleado` (`legajo`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_et_tarea`
+    FOREIGN KEY (`nro_trabajo` , `nro_item` , `codigo_tipo_tarea`)
+    REFERENCES `cosplay`.`tarea` (`nro_trabajo` , `nro_item` , `codigo_tipo_tarea`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
 
+CREATE TABLE `cosplay`.`control_calidad` (
+  `nro_trabajo` INT(11) NOT NULL,
+  `nro_item` INT(11) NOT NULL,
+  `codigo_tipo_tarea` INT(11) NOT NULL,
+  `legajo_especialista` INT(11) NOT NULL,
+  `detalle` VARCHAR(255) NULL,
+  `aprobada` TINYINT(1) NULL,
+  `fecha_hora` DATETIME NULL,
+  PRIMARY KEY (`nro_trabajo`, `nro_item`, `codigo_tipo_tarea`, `legajo_especialista`),
+  INDEX `fk_cc_empleado_idx` (`legajo_especialista` ASC),
+  CONSTRAINT `fk_cc_tarea`
+    FOREIGN KEY (`nro_trabajo` , `nro_item` , `codigo_tipo_tarea`)
+    REFERENCES `cosplay`.`tarea` (`nro_trabajo` , `nro_item` , `codigo_tipo_tarea`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_cc_empleado`
+    FOREIGN KEY (`legajo_especialista`)
+    REFERENCES `cosplay`.`empleado` (`legajo`)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
 
 #----------EJERCICIO 1----------#
 Ranking de clientes. Indicar: Número de cliente, cuil/cuit, nombre, email, cantidad de trabajos encargados y sumatoria de importes 
 presupuestados. Ordenar sumatoria de importes en forma descendente y por cantidad de trabajos en forma ascendente.
 
+select cli.nro, cli.cui, cli.nombre, cli.email, count(*) as CantidadDeTrabajo, sum(tra.importe_presup) as SumaPresupuestos
+from cliente as cli
+inner join trabajo as tra
+on cli.nro = tra.nro_cliente
+group by 1,2,3,4
+order by 6 desc, 5 asc;
+
 #----------EJERCICIO 3----------#
 Lista de costo de materiales. Indicar código del material, descripción, unidad de medida, color  y valor actual.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select cm.codigo_material, max(cm.fecha_valor) as fecha
+from costo_material as cm
+where cm.fecha_valor <= current_date
+group by 1;
+
+select mat.codigo, mat.descripcion, mat.unidad_medida, mat.color, cm.valor_unit
+from material as mat
+inner join costo_material as cm
+on mat.codigo = cm.codigo_material
+inner join ultfec as ult
+on cm.fecha_valor = ult.fecha and cm.codigo_material = ult.codigo_material;
 
 #----------EJERCICIO 4----------#
 Trabajos pendientes: Listar los trabajos que no estén terminados al día de hoy. Indicar número de trabajo, fecha límite de confección, 
 importe presupuestado, y para cada ítem del trabajo que no esté finalizado indicar el número de ítem, el detalle, y por cada tarea no 
 completada el código del tipo de tarea, detalle de la tarea fecha y hora de inicio, horas estimadas y sumatoria de horas reales trabajadas 
 para dicha tarea.
+
+select 	tra.nro,
+		tra.fecha_limite_conf,
+        tra.importe_presup,
+        it.nro_item,
+        it.detalle,
+        tar.codigo_tipo_tarea,
+        tar.detalle,
+        tar.fecha_hora_inicio,
+        tar.hs_estimadas,
+        round(ifnull(sum(et.hs_trabajadas_reales),0),2) as HsTrabajadas
+from trabajo as tra
+inner join item as it
+on tra.nro = it.nro_trabajo
+inner join tarea as tar
+on it.nro_trabajo = tar.nro_trabajo and it.nro_item = tar.nro_item
+left join ejecucion_tarea as et
+on tar.nro_trabajo = et.nro_trabajo and tar.nro_item = et.nro_item and tar.codigo_tipo_tarea = et.codigo_tipo_tarea
+where tra.fecha_fin_confec is null and tar.fecha_hora_fin is null and tra.fecha_confirmacion is not null
+group by 1,2,3,4,5,6,7,8,9
 
 #----------EJERCICIO 5----------#
 Artesanos excediendo el máximo de horas al mes: realizar un procedimiento almacenado que calcule las horas trabajadas reales totales por 
@@ -79,9 +164,65 @@ procedimiento almacenado debe recibir como parámetros el mes, el año y el máx
 cuil, nombre, apellido, descripción de la especialidad, cantidad total de horas trabajadas y horas excedidas. Al finalizar invocar el 
 procedimiento. Para realizar pruebas usar Octubre de 2018 y 10 hs
 
+use `cosplay`;
+drop procedure if exists `hs_exceso`;
+
+delimiter $$
+use `cosplay`$$
+create procedure `hs_exceso`(in mes int, in anio int, in horas double)
+begin
+select 	emp.legajo,
+		emp.cuil,
+		emp.apellido,
+        emp.nombre,
+        esp.descripcion,
+        round(ifnull(sum(et.hs_trabajadas_reales),0),2) as HorasTotalesTrabajadas,
+        round(sum(et.hs_trabajadas_reales) - horas, 2) as HsExcedidas
+from empleado as emp
+inner join artesano_especialidad as ae
+on emp.legajo = ae.legajo_artesano
+inner join especialidad as esp
+on ae.codigo_especialidad = esp.codigo
+inner join ejecucion_tarea as et
+on emp.legajo = et.legajo_artesano
+inner join tarea as tar
+on et.nro_trabajo = tar.nro_trabajo and et.nro_item = tar.nro_item and tar.codigo_tipo_tarea = et.codigo_tipo_tarea
+where year(tar.fecha_hora_inicio) = anio and month(tar.fecha_hora_inicio) = mes
+group by 1,2,3,4,5
+having sum(et.hs_trabajadas_reales) > horas;
+end $$
+delimiter ;
+
+call hs_exceso(10,2018,10);
+
 #----------EJERCICIO 6----------#
 Actualización de precios: Debido al aumento en los costos de los proveedores, la empresa debe actualizar los costos de los materiales. 
 El aumento regirá a partir del lunes próximo. El aumento en los materiales será de un 30% a los que tengan un importe menor a $2000 y de 
 20% a los que tengan un importe mayor o igual a $2000.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select cm.codigo_material, max(cm.fecha_valor) as fecha
+from costo_material as cm
+where cm.fecha_valor <= current_date
+group by 1;
+
+start transaction;
+
+insert into costo_material(codigo_material,fecha_valor,valor_unit)
+select cm.codigo_material, '2019-09-23', cm.valor_unit * 1.20
+from costo_material as cm
+inner join ultfec as ult
+on cm.codigo_material = ult.codigo_material and cm.fecha_valor = ult.fecha
+where cm.valor_unit >= 200;
+
+insert into costo_material(codigo_material,fecha_valor,valor_unit)
+select cm.codigo_material, '2019-09-23', cm.valor_unit * 1.30
+from costo_material as cm
+inner join ultfec as ult
+on cm.codigo_material = ult.codigo_material and cm.fecha_valor = ult.fecha
+where cm.valor_unit < 200;
+
+commit;
 
 

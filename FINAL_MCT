@@ -1,0 +1,152 @@
+#---------------EJERCICIO 1---------------#
+Desarrolle las sentencias DDL requeridas para completar la definición de las tablas CHOFERES_TURNOS y VIAJES
+
+ALTER TABLE `manolo_carpa_tigre`.`choferes_turnos` 
+ADD PRIMARY KEY (`cuil`, `cod_turno`, `fecha_turno`),
+ADD INDEX `fk_ct_turnos_idx` (`cod_turno` ASC);
+;
+ALTER TABLE `manolo_carpa_tigre`.`choferes_turnos` 
+ADD CONSTRAINT `fk_ct_choferes`
+  FOREIGN KEY (`cuil`)
+  REFERENCES `manolo_carpa_tigre`.`choferes` (`cuil`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_ct_turnos`
+  FOREIGN KEY (`cod_turno`)
+  REFERENCES `manolo_carpa_tigre`.`turnos` (`cod_turno`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+  
+  ALTER TABLE `manolo_carpa_tigre`.`viajes` 
+ADD INDEX `fk_v_tipos_viajes_idx` (`cod_tipo_viaje` ASC),
+ADD INDEX `fk_v_contratos_idx` (`nro_contrato` ASC),
+ADD INDEX `fk_v_choferes_turnos_idx` (`cuil` ASC, `cod_turno` ASC, `fecha_turno` ASC);
+;
+ALTER TABLE `manolo_carpa_tigre`.`viajes` 
+ADD CONSTRAINT `fk_v_tipos_viajes`
+  FOREIGN KEY (`cod_tipo_viaje`)
+  REFERENCES `manolo_carpa_tigre`.`tipos_viajes` (`cod_tipo_viaje`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_v_contratos`
+  FOREIGN KEY (`nro_contrato`)
+  REFERENCES `manolo_carpa_tigre`.`contratos` (`nro_contrato`)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE, 
+ADD CONSTRAINT `fk_v_choferes_turnos`
+  FOREIGN KEY (`cuil` , `cod_turno` , `fecha_turno`)
+  REFERENCES `manolo_carpa_tigre`.`choferes_turnos` (`cuil` , `cod_turno` , `fecha_turno`)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE;
+  
+#---------------EJERCICIO 2---------------#
+Ranking de móviles. Indicar: Patente, cantidad de kilómetros recorridos en todos los viajes que realizó el móvil. Ordenar por cantidad de 
+kilómetros recorridos en forma descendente.
+
+select vm.patente, round(sum(vm.km_fin - vm.km_ini),2) as KmsTotales
+from viajes_moviles as vm
+group by 1
+order by 2 desc;
+
+#---------------EJERCICIO 3---------------#
+Lista de precios. Indicar código del tipo de viaje, descripción y valor actual. Si el tipo de viaje aún no tiene ningún precio registrado, 
+mostrar igual el tipo de viaje indicando esta situación.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select tvv.cod_tipo_viaje, max(tvv.fecha_desde) as fecha
+from tipos_viajes_valores as tvv
+where tvv.fecha_desde <= current_date
+group by 1;
+
+select tv.cod_tipo_viaje, tv.desc_tipo_viaje, ifnull(tvv.valor_km,"Sin registro hasta el momento") as ValorActual
+from tipos_viajes as tv
+left join ultfec as ult
+on tv.cod_tipo_viaje = ult.cod_tipo_viaje
+left join tipos_viajes_valores as tvv
+on ult.cod_tipo_viaje = tvv.cod_tipo_viaje and ult.fecha = tvv.fecha_desde;
+
+#---------------EJERCICIO 4---------------#
+Importes adeudados: Listar los clientes que adeudan cuotas indicando: tipo y nro. de documento, nombre, teléfono, cantidad de cuotas 
+vencidas, importe total adeudado e importe total de recargo al día de hoy. Recordar que las cuotas vencidas tienen un importe de recargo 
+que se calcula: Recargo = cantidad de días de mora * porcentaje de recargo vigente * importe de la cuota / 100. Cantidad de días de 
+mora = fecha actual – fecha vencimiento (Función DATEDIFF)
+
+select max(re.FechaDesde) into @maxFec
+from recargos as re
+where re.FechaDesde <= current_date;
+
+select rec.PorcRecargoDiario into @recargo
+from recargos as rec
+where rec.FechaDesde = @maxFec;
+
+select 	cli.tipo_doc, 
+		cli.nro_doc, 
+        cli.denominacion, cli.telefono, 
+        count(*) as CantidadCuotasVencidas, 
+        round(sum(cuo.importe),2) as ImporteAdeudado,
+        round(datediff(current_date,cuo.fecha_venc) * @recargo * cuo.importe / 100,2) as Recargo
+from clientes as cli
+inner join contratos as con
+on cli.tipo_doc = con.tipo_doc and cli.nro_doc = con.nro_doc
+inner join viajes as via
+on con.nro_contrato = via.nro_contrato
+inner join cuotas as cuo
+on via.nro_viaje = cuo.nro_viaje
+where cuo.fecha_pago is null
+group by 1,2,3,4;
+
+#---------------EJERCICIO 5---------------#
+Disponibilidad de móviles: realizar un procedimiento almacenado que analice la disponibilidad de móviles con una cierta capacidad o más 
+(parámetro de entrada) para realizar un viaje casual. El procedimiento deberá listar Patente y capacidad de los móviles disponibles. 
+Probar el procedimiento para la capacidad: 20
+
+use `manolo_carpa_tigre`;
+drop procedure if exists `buscar_movil`;
+
+delimiter $$
+use `manolo_carpa_tigre`$$
+create procedure `buscar_movil`(in cantPasajeros int)
+begin
+select mov.patente, mov.capacidad
+from moviles as mov
+where mov.capacidad >= cantPasajeros and mov.fecha_baja is null and mov.patente not in (
+	select vm.patente
+	from viajes_moviles as vm
+	inner join viajes as via
+	on vm.nro_viaje = via.nro_viaje
+	where (via.fecha_cancelacion is null and via.estado = "En proceso") or (via.fecha_ini = current_date and via.estado = "Pendiente"));
+end$$
+delimiter ;
+
+call buscar_movil(20);
+
+#---------------EJERCICIO 6---------------#
+Actualización de precios: Debido a un aumento en los combustibles la empresa ha decidido un aumento de precios para el valor por km de los 
+tipos de viajes. El aumento regirá a partir del lunes próximo. El aumento será de un 25% a los que tengan un importe menor a $100 y de 30% 
+a los que tengan un importe mayor o igual a $100.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select tvv.cod_tipo_viaje, max(tvv.fecha_desde) as fecha
+from tipos_viajes_valores as tvv
+where tvv.fecha_desde <= current_date 
+group by 1;
+
+start transaction;
+
+insert into tipos_viajes_valores(cod_tipo_viaje, fecha_desde, valor_km)
+select tvv.cod_tipo_viaje, '2019-09-30', tvv.valor_km * 1.30
+from tipos_viajes_valores as tvv
+inner join ultfec as ult
+on tvv.cod_tipo_viaje = ult.cod_tipo_viaje and tvv.fecha_desde = ult.fecha 
+where tvv.valor_km >= 100;
+
+insert into tipos_viajes_valores(cod_tipo_viaje, fecha_desde, valor_km)
+select tvv.cod_tipo_viaje, '2019-09-30', tvv.valor_km * 1.25
+from tipos_viajes_valores as tvv
+inner join ultfec as ult
+on tvv.cod_tipo_viaje = ult.cod_tipo_viaje and tvv.fecha_desde = ult.fecha 
+where tvv.valor_km < 100;        
+
+commit;

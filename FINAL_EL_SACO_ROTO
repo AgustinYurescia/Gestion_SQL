@@ -1,0 +1,189 @@
+#---------------EJERCICIO 1---------------#
+Desarrolle las sentencias DDL requeridas para completar la definición delas tablas PRENDAS y las tablas directamente relacionadas con ella.
+
+ALTER TABLE `saco_roto`.`prendas_sastres` 
+ADD PRIMARY KEY (`nro_persona`, `cod_tipo_prenda`, `nro_pedido`, `cuil`),
+ADD INDEX `fk_ps_sastres_idx` (`cuil` ASC);
+;
+ALTER TABLE `saco_roto`.`prendas_sastres` 
+ADD CONSTRAINT `fk_ps_prendas`
+  FOREIGN KEY (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  REFERENCES `saco_roto`.`prendas` (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_ps_sastres`
+  FOREIGN KEY (`cuil`)
+  REFERENCES `saco_roto`.`sastres` (`cuil`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+  
+  ALTER TABLE `saco_roto`.`prendas_medidas` 
+ADD INDEX `fk_pm_medidas_idx` (`cod_medida` ASC),
+ADD INDEX `fk_pmed_prendas_idx` (`nro_persona` ASC, `cod_tipo_prenda` ASC, `nro_pedido` ASC);
+;
+ALTER TABLE `saco_roto`.`prendas_medidas` 
+ADD CONSTRAINT `fk_pmed_prendas`
+  FOREIGN KEY (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  REFERENCES `saco_roto`.`prendas` (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_pm_medidas`
+  FOREIGN KEY (`cod_medida`)
+  REFERENCES `saco_roto`.`medidas` (`cod_medida`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+  
+ALTER TABLE `saco_roto`.`prendas_medidas` 
+ADD PRIMARY KEY (`nro_persona`, `cod_tipo_prenda`, `nro_pedido`, `cod_medida`);
+
+ALTER TABLE `saco_roto`.`prendas_materiales` 
+ADD INDEX `fk_pmat_prendas_idx` (`nro_persona` ASC, `cod_tipo_prenda` ASC, `nro_pedido` ASC),
+ADD INDEX `fk_pmat_materiales_idx` (`cod_material` ASC);
+;
+ALTER TABLE `saco_roto`.`prendas_materiales` 
+ADD CONSTRAINT `fk_pmat_prendas`
+  FOREIGN KEY (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  REFERENCES `saco_roto`.`prendas` (`nro_persona` , `cod_tipo_prenda` , `nro_pedido`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE,
+ADD CONSTRAINT `fk_pmat_materiales`
+  FOREIGN KEY (`cod_material`)
+  REFERENCES `saco_roto`.`materiales` (`cod_material`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+
+ALTER TABLE `saco_roto`.`prendas_materiales` 
+ADD PRIMARY KEY (`nro_persona`, `cod_tipo_prenda`, `nro_pedido`, `cod_material`);
+
+#---------------EJERCICIO 2---------------#
+Listado de prendas sin confeccionar: Listado de prendas que aún no se han terminado de confeccionar. Mostrar: Nombre y apellido de la 
+persona, descripción de la prenda, fecha del pedido, fecha fin estimada de la prenda, fecha_entrega_requerida y cantidad de días de 
+demora en función de la fecha requerida a hoy (función DATEDIFF).
+
+select  per.nombre, per.apellido, tp.desc_tipo_prenda, ped.fecha_hora_pedido, pre.fecha_fin_est, pre.fecha_entrega, 
+        datediff(current_date, pre.fecha_entrega) as DiasDeDemora 
+from prendas as pre
+inner join personas as per
+on pre.nro_persona = per.nro_persona
+inner join tipos_prendas as tp
+on pre.cod_tipo_prenda = tp.cod_tipo_prenda
+inner join pedidos as ped
+on pre.nro_pedido = ped.nro_pedido
+where pre.fecha_fin_real is null and pre.confirmada = 1;
+
+
+#---------------EJERCICIO 3---------------#
+Estadística de tipos de prendas: Mostrar los tipos de prendas que nunca se han vendido. Indicando código del tipo de prenda y 
+descripción.
+
+select tp.cod_tipo_prenda, tp.desc_tipo_prenda
+from tipos_prendas as tp
+where tp.cod_tipo_prenda not in(
+	select distinct pre.cod_tipo_prenda
+	from prendas as pre
+	where pre.confirmada = 1);
+
+#---------------EJERCICIO 4---------------#
+Última fecha de prueba: Realizar el procedimiento "ult_prueba" que dada una fecha muestre por cada persona y tipo de prenda, cuál fue la 
+última prueba realizada. Mostrar número y nombres de las personas, tipo de prenda, descripción del tipo de prenda y fecha de última 
+prueba. Si una persona tiene varias pruebas del mismo tipo de prenda el mismo día mostrar una sola vez. Ordenar por fecha en forma 
+descendente y por apellido en forma ascendente. 
+Probar el procedimiento con la fecha: 5/11/2013
+
+use `saco_roto`;
+drop procedure if exists `ult_prueba`;
+
+delimiter $$
+use `saco_roto`$$
+create procedure `ult_prueba`(in fecha date)
+begin
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select pr.nro_persona, pr.nro_pedido, pr.cod_tipo_prenda, max(pr.fecha_prueba) as fecha
+from pruebas as pr
+where pr.fecha_prueba <= fecha
+group by 1,2,3;
+
+select distinct per.nro_persona,
+				per.nombre,
+				per.apellido,
+				tp.cod_tipo_prenda,
+				tp.desc_tipo_prenda,
+				pru.fecha_prueba
+from personas as per
+inner join prendas as pre
+on per.nro_persona = pre.nro_persona
+inner join tipos_prendas as tp
+on pre.cod_tipo_prenda = tp.cod_tipo_prenda
+inner join pruebas as pru
+on pre.nro_persona = pru.nro_persona and pre.nro_pedido = pru.nro_pedido and pre.cod_tipo_prenda = pru.cod_tipo_prenda
+inner join ultfec as ult
+on  ult.nro_persona = pru.nro_persona and ult.nro_pedido = pru.nro_pedido and 
+    ult.cod_tipo_prenda = pru.cod_tipo_prenda and pru.fecha_prueba = ult.fecha
+order by 6 desc, 3 asc;
+
+end$$
+delimiter ;
+
+call ult_prueba("2013-11-05");
+
+#---------------EJERCICIO 5---------------#
+La tabla MATERIALES tiene el atributo unidad de medida que el usuario registra manualmente sin la posibilidad de controlar la integridad 
+del dato. Se requiere entonces mantener la tabla unidades_medida que contenga los distintos valores de las unidades de medida hasta ahora 
+registrados para luego vincularla a la tabla materiales. Para ello se requiere.
+
+#----------EJERCICIO 5A----------#
+Crear la tabla: UNIDADES_MEDIDA con los atributos cod_unidad (clave primaria) y desc_unidad. Nota: Se sugiere indicar el atributo 
+cod_unidad como auto-incremental
+
+CREATE TABLE `saco_roto`.`unidades_medida` (
+  `cod_unidad` INT(11) NOT NULL AUTO_INCREMENT,
+  `desc_unidad` VARCHAR(50) NULL,
+  PRIMARY KEY (`cod_unidad`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COLLATE = utf8_bin;
+
+#----------EJERCICIO 5B----------#
+Registrar en la tabla UNIDADES_MEDIDA creada las diferentes unidades de medida que existan en la tabla de MATERIALES.
+
+start transaction;
+
+insert into unidades_medida(desc_unidad)
+select distinct mat.unidad
+from materiales as mat;
+
+commit;
+
+#----------EJERCICIO 5C----------#
+Agregar el atributo cod_unidad a la tabla de MATERIALES
+
+ALTER TABLE `saco_roto`.`materiales` 
+ADD COLUMN `cod_unidad` INT(11) NULL AFTER `unidad`;
+
+#----------EJERCICIO 5D----------#
+Actualizar el atributo cod_unidad de la tabla de MATERIALES con el correspondiente cod_unidad de la tabla UNIDADES_MEDIDA
+
+start transaction;
+    update materiales
+    SET cod_unidad = (
+		select um.cod_unidad 
+        from unidades_medida um 
+        where um.desc_unidad = materiales.unidad);
+commit;
+
+
+#----------EJERCICIO 5E----------#
+Completar la definición de la tabla MATERIALES para lograr controlar la integridad referencial
+
+ALTER TABLE `saco_roto`.`materiales` 
+DROP COLUMN `unidad`,
+ADD INDEX `fk_mat_unidades_medida_idx` (`cod_unidad` ASC);
+;
+ALTER TABLE `saco_roto`.`materiales` 
+ADD CONSTRAINT `fk_mat_unidades_medida`
+  FOREIGN KEY (`cod_unidad`)
+  REFERENCES `saco_roto`.`unidades_medida` (`cod_unidad`)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE;
+

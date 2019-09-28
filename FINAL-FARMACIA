@@ -1,0 +1,225 @@
+#La fecha de hoy es '01/12/2010' (Es porque fue la fecha que se tomó el final)#
+#---------------EJERCICIO 1---------------#
+Listado de pacientes a los que se les vendió en el día de hoy, indicando DNI, Apellido, Nombre y Obra Social por la que se le realizó la 
+venta. Si la venta no se realizo por obra social, mostrar la leyenda “PARTICULAR” en lugar de la Obra Social.
+
+select pac.DNI, pac.Nombres, pac.Apellido, ifnull(ven.Nombre,'Particular') as ObraSocial
+from ventas as ven
+inner join pacientes as pac
+on ven.DNI = pac.DNI
+where ven.Fecha = '2010-12-01';
+
+#---------------EJERCICIO 2---------------#
+Listado de medicamentos con sus contraindicados. Indicar: Nombre del Medicamento, Nro. de Troquel, Nombre del Medicamento contraindicado y 
+Nro. de Troquel del Medicamento contraindicado. Si no tiene medicamentos contraindicados mostrar la leyenda “Sin Contraindicaciones” en 
+el nombre del medicamento contraindicado.
+
+select  med.Troquel, 
+        med.Nombre, ifnull(con.Contraindicado,'Sin contraindicaciones') as TroquelCont, 
+        ifnull(me.Nombre,'Sin contraindicaciones') as NombreCont 
+from medicamentos as med
+left join contraindicados as con
+on med.Troquel = con.Troquel
+left join medicamentos as me
+on con.Contraindicado = me.Troquel;
+
+#---------------EJERCICIO 3---------------#
+Listar las droguerías que venden el medicamento “Procetina” y su precio actual indicando nombre la droguería y precio.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select pre.CUIT, pre.Troquel, max(pre.Fecha_Desde) as fecha
+from precios as pre
+where pre.Fecha_Desde <= current_date
+group by 1,2;
+
+select dro.Razon_Social, pre.Precio
+from ultfec as ult
+inner join medicamentos as med
+on ult.Troquel = med.Troquel
+inner join droguerias as dro
+on ult.CUIT = dro.CUIT
+inner join precios as pre
+on ult.CUIT = pre.CUIT and ult.Troquel = pre.Troquel and ult.fecha = pre.Fecha_Desde
+where med.Nombre = 'Procetina';
+
+#---------------EJERCICIO 4---------------#
+Listar las droguerías que proveen medicamentos de los que se hayan realizado ventas en el mes de noviembre de este año y cuyo stock esté 
+en cero, indicando CUIT y razón social de la droguería, Nro. Troquel, Nombre del Medicamento, presentación y nombre del tipo de 
+medicamento.
+
+select distinct dro.CUIT, dro.Razon_Social, med.Troquel, med.Nombre, med.Presentacion, tip.Nombre
+from droguerias as dro
+inner join droguerias_medicamentos as dm
+on dro.CUIT = dm.CUIT
+inner join medicamentos as med
+on dm.Troquel = med.Troquel
+inner join tipos as tip
+on med.IdTipo = tip.IdTipo
+inner join ventas_medicamentos as vm
+on med.Troquel = vm.Troquel
+inner join ventas as ven
+on ven.Numero = vm.Numero
+where month(ven.Fecha) = 11 and year(ven.Fecha) = 2010 and med.Stock = 0;
+
+#---------------EJERCICIO 5---------------#
+Medicamentos adquiridos por el paciente de DNI 12345678, indicando nombre, presentación, CUIT y Razón Social de la Droguería y 
+cantidad total vendida en el año 2010.
+
+select dro.CUIT, dro.Razon_Social,  med.Nombre, med.Presentacion, sum(vm.Cantidad) as Total
+from medicamentos as med
+inner join ventas_medicamentos as vm
+on med.Troquel = vm.Troquel
+inner join ventas as ven
+on vm.Numero = ven.Numero
+inner join droguerias as dro
+on dro.CUIT = vm.CUIT
+where year(ven.Fecha) = 2010 and ven.DNI=12345678
+group by 1,2,3,4;
+
+#---------------EJERCICIO 6---------------#
+Porcentaje de venta sobre la cantidad total vendida, de cada uno de los medicamentos durante este año, mostrando nombre del medicamento,
+cantidad total vendida y porcentaje respecto al total de medicamentos vendidos durante el año, ordenado descendente por total vendido. 
+Mostrar también los medicamentos que no se han vendido.
+
+select sum(vm.Cantidad) into @totalventas
+from ventas_medicamentos as vm
+inner join ventas as ven
+on ven.Numero = vm.Numero
+where year(ven.Fecha) = 2010;
+
+select  med.Nombre, 
+        ifnull(sum(vm.Cantidad),0) as CantidadVendida, 
+        ifnull(round((sum(vm.Cantidad) * 100 / @totalventas),2),0) as '%SobreTotal'
+from medicamentos as med
+left join ventas_medicamentos as vm
+on med.Troquel = vm.Troquel
+left join ventas as ven
+on vm.Numero = ven.Numero
+where year(ven.Fecha) = 2010 or ven.Fecha is null
+group by vm.Troquel
+order by 2 desc;
+
+#---------------EJERCICIO 7---------------#
+Obtener Medicamentos que se vendieron más de 7 unidades en total, indicar Troquel, nombre, presentación y cantidad de unidades vendidas.
+
+select med.Troquel, med.Nombre, med.Presentacion, sum(vm.Cantidad) as CantidadVendida
+from medicamentos as med
+inner join ventas_medicamentos as vm
+on med.Troquel = vm.Troquel
+group by vm.Troquel
+having CantidadVendida > 7;
+
+#---------------EJERCICIO 8---------------#
+Tipos de medicamentos vendidos en el mes de octubre (mes 10), que no se hayan vendido en el mes de noviembre (mes 11) del presente 
+año 2010.
+
+select distinct tip.*
+from medicamentos as med
+inner join ventas_medicamentos as vm
+on med.Troquel = vm.Troquel
+inner join ventas as ven
+on ven.Numero = vm.Numero
+inner join tipos as tip
+on med.IdTipo = tip.IdTipo
+where month(ven.Fecha) = 10 and year(ven.fecha) = 2010 and tip.IdTipo not in (
+	select distinct med.IdTipo
+	from medicamentos as med
+	inner join ventas_medicamentos as vm
+	on med.Troquel = vm.Troquel
+	inner join ventas as ven
+	on ven.Numero = vm.Numero
+	where month(ven.Fecha) = 11 and year(ven.fecha) = 2010);
+
+#---------------EJERCICIO 9---------------#
+Calcular importes de la venta número 70 (del día de hoy) sin considerar los descuentos. Listar Nombre del Medicamento, Nombre de la 
+Droguería, precio, cantidad y subtotal de línea.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select pre.Troquel, pre.CUIT, max(pre.Fecha_Desde) as fecha
+from precios as pre
+where pre.Fecha_Desde <= current_date
+group by 1,2;
+
+select med.Nombre, dro.Razon_Social, pre.Precio, vm.Cantidad, round(pre.Precio*vm.Cantidad,2) as SubTotal
+from ventas as ven 
+inner join ventas_medicamentos as vm
+on ven.Numero = vm.Numero
+inner join droguerias_medicamentos as dm
+on vm.CUIT = dm.CUIT and vm.Troquel = dm.Troquel
+inner join ultfec as ult
+on vm.cuit = ult.cuit and vm.troquel = ult.Troquel
+inner join precios as pre
+on pre.cuit = ult.cuit and pre.troquel = ult.Troquel and pre.Fecha_Desde = ult.fecha
+inner join medicamentos as med
+on vm.troquel = med.troquel
+inner join droguerias as dro
+on dro.CUIT = vm.CUIT
+where ven.Numero = 70;
+
+#---------------EJERCICIO 10---------------#
+Ranking de Obras Sociales por cantidad de ventas realizadas, durante este año, y porcentaje respecto a la cantidad total de ventas, 
+ordenadas en forma descendente por porcentaje. Para las ventas que no se realizaron por Obra Social mostrar la leyenda 
+“PARTICULAR” en la Obra Social.
+
+select count(*) into @totalventas
+from ventas as ven
+where year(ven.Fecha) = 2010;
+
+select ifnull(ven.Nombre,'Particular') as NombreOS, count(*) as CantidadDeVentas, round(count(*) * 100 / @totalventas,2) as '%SobreTotal'
+from ventas as ven
+where year(ven.Fecha) = 2010
+group by 1;
+
+#---------------EJERCICIO 11---------------#
+Indicar el paciente que compro mayor cantidad de veces, para cada uno de los meses de este año.
+
+drop temporary table if exists cantpac;
+create temporary table cantpac
+select ven.DNI, month(ven.Fecha) as mes, count(*) as cant
+from ventas as ven
+where year(ven.Fecha) = 2010
+group by 1,2;
+
+drop temporary table if exists cantmax;
+create temporary table cantmax
+select cp.mes, max(cant) as cant
+from cantpac as cp
+group by 1;
+
+select cp.dni, cp.mes, cp.cant as Cantidad
+from cantpac as cp
+inner join cantmax as cm
+on cp.mes = cm.mes and cp.cant = cm.cant
+order by 2;
+
+#---------------EJERCICIO 12---------------#
+12. (TRAN) La Droguería BOSCH se ha mudado a San Juan 1200 y tiene un nuevo número de teléfono.
+
+start transaction;
+
+update droguerias 
+set calle = 'San Juan',
+    Numero = 1200,
+    Telefono = 123456789
+where Razon_Social = 'BOSCH';
+
+COMMIT;
+
+#---------------EJERCICIO 13---------------#
+(TRAN) Ingresar una nueva venta en el día de hoy para el paciente 12000000 que compra los medicamentos 1555 de la droguería CUIT 
+1888888888, por cantidad 5 y 2244 de la droguería 1999999999, por cantidad 1 y lo hace por la Obra Social DASUTEN.
+
+start transaction;
+
+insert into ventas
+values(73,current_date,12000000,'DASUTEN');
+
+insert into ventas_medicamentos
+values(73,1555,1888888888,5);
+
+insert into ventas_medicamentos
+values(73,2244,1999999999,1);
+
+COMMIT;

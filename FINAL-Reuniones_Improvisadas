@@ -1,0 +1,172 @@
+#---------------EJERCICIO 1---------------#
+select apeynom, direccion, ifnull(password_web, 'No registrado') as ContraseñaWeb
+from clientes 
+where nro_tel = '4652311';
+
+#---------------EJERCICIO 2---------------#
+select count(password_web) into @registrados 
+from clientes;
+
+select count(*) into @noregistrados
+from clientes 
+where password_web is null;
+
+select 	@registrados as CantidadRegEnWeb,
+		@noregistrados as CantidadNoRegEnWeb;
+
+#---------------EJERCICIO 3---------------#
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select vi.id_item, max(vi.fecha_valor) as fecha
+from valores_item as vi
+where vi.fecha_valor <= '2007-07-06'
+group by 1;
+
+select ped.id_pedido, sum(dp.cantidad_detalle * vi.valor_item) as Total
+from pedidos as ped
+inner join detalle_pedido as dp
+on ped.id_pedido = dp.id_pedido and ped.fecha_pedido = dp.fecha_pedido
+inner join items as it
+on dp.id_item = it.id_item
+inner join ultfec as ult
+on it.id_item = ult.id_item
+inner join valores_item as vi
+on vi.id_item = ult.id_item and vi.fecha_valor = ult.fecha
+where ped.fecha_pedido = '2007-07-06'
+group by 1;
+
+#---------------EJERCICIO 4---------------#
+select emp.apeynom, count(*) as CantidadDeRepartos
+from empleados as emp
+inner join pedidos as ped
+on emp.cuil = ped.cuil
+where ped.fecha_pedido='2007-07-05' and ped.nro_tel is not null and emp.apeynom='Juan Perez' and ped.estado_pedido='cerrado';
+
+#---------------EJERCICIO 5---------------#
+select cli.nro_tel, count(*) as CantidadDePedidos
+from pedidos as ped
+inner join clientes as cli
+on cli.nro_tel = ped.nro_tel
+where cli.nro_tel = '4552007' and month(ped.fecha_pedido) = 6 and year(ped.fecha_pedido) = 2007;
+
+#---------------EJERCICIO 6---------------#
+select distinct ped.*
+from pedidos as ped
+inner join detalle_pedido as dp
+on ped.fecha_pedido = dp.fecha_pedido and ped.id_pedido = dp.id_pedido
+inner join items as it
+on dp.id_item = it.id_item
+where it.tiempo_preparacion is not null and dp.estado_detalle = 'listo' and ped.estado_pedido = 'vigente';
+
+#---------------EJERCICIO 7---------------#
+drop temporary table if exists ultfec;
+create temporary table ultfec 
+select vi.id_item, max(vi.fecha_valor) as fecha
+from valores_item as vi
+where vi.fecha_valor <= current_date 
+group by 1;
+
+select it.id_item, it.descripcion, vi.valor_item
+from items as it
+inner join ultfec as ult
+on it.id_item = ult.id_item
+inner join valores_item as vi
+on ult.id_item = vi.id_item and ult.fecha = vi.fecha_valor;
+
+#---------------EJERCICIO 8---------------#
+select it.id_item, it.descripcion, sum(dp.cantidad_detalle) as CantidadTotalPedida
+from items as it
+inner join detalle_pedido as dp
+on it.id_item = dp.id_item
+where it.tiempo_preparacion is not null and year(dp.fecha_pedido) = 2007
+group by 1,2
+order by 3 desc;
+
+#---------------EJERCICIO 9---------------#
+drop temporary table if exists ultfec;
+create temporary table ultfec 
+select vi.id_item, max(vi.fecha_valor) as fecha
+from valores_item as vi
+where vi.fecha_valor <= '2007-07-05'
+group by 1;
+
+select sum(dp.cantidad_detalle * vi.valor_item) as 'Total facturado el dia 05/07/2007'
+from detalle_pedido as dp
+inner join ultfec as ult
+on dp.id_item = ult.id_item
+inner join valores_item as vi
+on ult.id_item = vi.id_item and ult.fecha = vi.fecha_valor
+where dp.fecha_pedido = '2007-07-05';
+
+#---------------EJERCICIO 10---------------#
+drop temporary table if exists ultfec;
+create temporary table ultfec 
+select vi.id_item, max(vi.fecha_valor) as fecha
+from valores_item as vi
+where vi.fecha_valor <= '2007-07-05'
+group by 1;
+
+select 	ped.nro_factura,
+		emp.cuil,
+        emp.apeynom,
+        sum(dp.cantidad_detalle) as CantidadItems,
+        sum(dp.cantidad_detalle * vi.valor_item) as ImporteTotal,
+        sum(dp.cantidad_detalle * vi.valor_item) * vi.comision as ComisiónMozo
+from pedidos as ped
+inner join empleados as emp
+on emp.cuil = ped.cuil
+inner join detalle_pedido as dp
+on ped.fecha_pedido = dp.fecha_pedido and ped.id_pedido = dp.id_pedido
+inner join ultfec as ult
+on dp.id_item = ult.id_item
+inner join valores_item as vi 
+on ult.id_item = vi.id_item and ult.fecha = vi.fecha_valor
+where ped.fecha_pedido = '2007-07-05' and ped.nro_tel is null
+group by 1,2,3
+order by 5 desc, 4 asc;
+
+#---------------EJERCICIO 11---------------#
+select *
+from clientes as cli
+where cli.nro_tel not in(
+	select distinct ped.nro_tel
+	from pedidos as ped
+	inner join detalle_pedido as dp
+	on ped.fecha_pedido = dp.fecha_pedido and ped.id_pedido = dp.id_pedido
+	inner join items as it
+	on dp.id_item = it.id_item
+	where it.descripcion = "tarta de carne" and nro_tel is not null);
+
+#---------------EJERCICIO 12---------------#
+drop temporary table if exists TTpedidos;
+create temporary table TTpedidos
+select ped.fecha_pedido, count(ped.nro_mesa) as CantidadEnBar, (count(*) - count(ped.nro_mesa)) as PedidosEnvio
+from pedidos as ped
+where month(ped.fecha_pedido) = 7 and year(ped.fecha_pedido) = 2007
+group by 1; 
+
+drop temporary table if exists TTitems;
+create temporary table TTitems
+select dp.fecha_pedido, it.descripcion, sum(dp.cantidad_detalle) as CantidadDeItems
+from detalle_pedido as dp
+inner join items as it
+on dp.id_item = it.id_item
+where month(dp.fecha_pedido) = 7 and year(dp.fecha_pedido) = 2007
+group by 1,2;
+
+select ped.fecha_pedido, CantidadEnBar, PedidosEnvio,it.descripcion as Item, CantidadDeItems
+from TTpedidos as ped
+inner join TTitems as it
+on ped.fecha_pedido = it.fecha_pedido;
+
+#---------------EJERCICIO 13---------------#
+start transaction;
+
+update sueldos_basicos set sueldo_basico = sueldo_basico*1.07
+where fecha_valor = '2007-08-01' and sueldo_basico >= 1000;
+
+update sueldos_basicos set sueldo_basico = sueldo_basico*1.10
+where fecha_valor = '2007-08-01' and sueldo_basico < 1000;
+
+commit;
+

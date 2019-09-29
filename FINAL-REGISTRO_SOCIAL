@@ -1,0 +1,239 @@
+#----------------EJERCICIO 01---------------#
+Mostrar el importe a entregar (suma del dinero comprometido), pagado (suma de dinero pagado) y adeudado (suma del dinero comprometido 
+menos pagado) para la intervención 3 solución 9.
+
+select sum(iso.cantidad_importe) into @comprometido
+from intervenciones_soluciones as iso
+where iso.nro_intervencion = 3 and iso.cod_solucion = 9;
+
+select  @comprometido as ImporteAEntregar, 
+        sum(seg.cantidad_importe) as ImportePagado, 
+        round((@comprometido - sum(seg.cantidad_importe)),2) as ImporteAdeudado
+from intervenciones_soluciones as iso
+inner join seguimiento as seg
+on iso.nro_intervencion = seg.nro_intervencion and iso.cod_solucion = seg.cod_solucion and iso.fecha_compromiso = seg.fecha_compromiso
+where iso.nro_intervencion = 3 and iso.cod_solucion = 9;
+
+#----------------EJERCICIO 02---------------#
+Mostrar todas las intervenciones realizadas en el 2011 y activas (no dadas de baja) con sus soluciones. Mostrar también las 
+intervenciones que no tengan soluciones
+
+select  inte.nro_intervencion, 
+        inte.fecha, inte.desc_interv, 
+        ifnull(sol.cod_solucion,'SIN SOLUCIÓN') as CodigoSolución, 
+        ifnull(sol.descr_solucion,'SIN SOLUCIÓN') as DescSolución
+from intervenciones as inte
+left join intervenciones_soluciones as iso
+on inte.nro_intervencion = iso.nro_intervencion
+left join soluciones as sol
+on iso.cod_solucion = sol.cod_solucion
+where year(inte.fecha) = 2011 and inte.fecha_baja is null;
+
+
+#----------------EJERCICIO 03---------------#
+Listado de intervenciones, cuya solución es Entrega de Cheques (para alimento o para materiales) Mostrar: nro de intervención, codigo y 
+descripción de la solución, fecha de compromiso, fecha de entrega, importe comprometido para cada intervención, importe entregado y el 
+porcentaje entregado en cada fecha de entrega.
+
+drop temporary table if exists importes;
+create temporary table importes
+select iso.nro_intervencion, iso.cod_solucion, iso.fecha_compromiso, iso.cantidad_importe
+from intervenciones_soluciones iso
+inner join soluciones as sol 
+on iso.cod_solucion = sol.cod_solucion
+where sol.descr_solucion like "%CHEQUE%";
+
+select 	imp.nro_intervencion, 
+		    sol.cod_solucion, 
+        sol.descr_solucion, 
+        imp.fecha_compromiso, 
+        seg.fecha_entrega, 
+        imp.cantidad_importe as ImpCompromiso, 
+        seg.cantidad_importe as ImpPagado,
+        round((seg.cantidad_importe * 100 / imp.cantidad_importe),2) as '%Pagado'
+from importes as imp
+inner join seguimiento as seg
+on imp.nro_intervencion = seg.nro_intervencion and imp.cod_solucion = seg.cod_solucion and imp.fecha_compromiso = seg.fecha_compromiso
+inner join soluciones as sol
+on imp.cod_solucion = sol.cod_solucion;
+
+#----------------EJERCICIO 04---------------#
+Listado que muestre por empleado, el total de entrevistas realizadas y el porcentaje respecto al total de entrevista en el año 2011. 
+Aquellos empleados que no hayan realizado entrevistas mostrar 0 (cero)
+
+select count(*) into @cantidadEnt
+from entrevistas as ent
+where year(ent.fecha) = 2011;
+
+select 	emp.nro_legajo, 
+		    emp.nombre, emp.apellido, 
+        ifnull(count(nro_entrevista),0) as CantidadEntrevistas, 
+        round((ifnull(count(nro_entrevista),0) * 100 / @cantidadEnt),2) as '%SobreTotal'
+from empleados as emp
+left join entrevistas as ent
+on emp.nro_legajo = ent.nro_legajo
+group by 1,2,3
+order by 4 desc;
+
+#----------------EJERCICIO 05---------------#
+Listado de personas que hayan pertenecido en cualquier fecha a algún grupo familiar o a un micro-emprendimiento con intervenciones en 
+cualquier momento. NOTA: no tener en cuenta fechas
+
+select distinct per.*
+from personas as per
+inner join grupo_personas as gp
+on per.tipo_doc = gp.tipo_doc and per.nro_doc = gp.nro_doc
+inner join grupo_familiar as gf
+on gp.id_grupo = gf.id_grupo
+inner join intervenciones as inte
+on gf.id_grupo = inte.id_grupo
+union
+select distinct per.*
+from personas as per
+inner join intervenciones_microemprendimientos as im
+on per.tipo_doc = im.tipo_doc and per.nro_doc = im.nro_doc;
+
+#----------------EJERCICIO 06---------------#
+Listados de temática que se hayan realizado intervenciones durante el 2010 y no se hayan realizado en el 2011
+
+select distinct te.*
+from intervenciones as inte
+inner join tematica as te
+on inte.cod_tematica = te.cod_tematica
+where year(inte.fecha) = 2010 and inte.cod_tematica not in(
+	select distinct inte.cod_tematica
+	from intervenciones as inte
+	where year(inte.fecha) = 2011);
+
+#----------------EJERCICIO 07---------------#
+Listado de intervenciones de instituciones con sus soluciones, mostrando datos de la intervención, institución y rubros de la 
+institución, soluciones y seguimiento.
+
+select 	inte.nro_intervencion,
+		    inte.fecha,
+        inte.desc_interv,
+        ins.cuit,
+        ins.nombre,
+        rub.desc_rubro,
+        sol.descr_solucion,
+        seg.cantidad_importe 
+from intervenciones as inte
+inner join instituciones as ins
+on inte.cuit = ins.cuit
+inner join inst_rubros as ir
+on ins.cuit = ir.cuit
+inner join rubros as rub
+on ir.cod_rubro = rub.cod_rubro
+inner join intervenciones_soluciones as iso
+on inte.nro_intervencion = iso.nro_intervencion
+inner join soluciones as sol
+on iso.cod_solucion = sol.cod_solucion
+inner join seguimiento as seg
+on iso.nro_intervencion = seg.nro_intervencion and iso.cod_solucion = seg.cod_solucion and iso.fecha_compromiso = seg.fecha_compromiso
+where inte.cuit is not null
+
+#----------------EJERCICIO 08---------------#
+Listado de soluciones, mostrando: descripción de la solución , la intervención asociada, fecha de intervención, descripción de la 
+temática, aquellas soluciones que no sean utilizadas en ninguna intervención mostrar “sin intervención”
+
+select 	sol.descr_solucion,
+		    ifnull(inte.desc_interv,'SIN INTERVENCIÓN') as Intervencion,
+        ifnull(inte.fecha,'SIN INTERVENCIÓN') as FechaIntervencion,
+        ifnull(te.desc_tematica,'SIN INTERVENCIÓN') as Tematica
+from soluciones as sol
+left join intervenciones_soluciones as iso
+on sol.cod_solucion = iso.cod_solucion
+left join intervenciones as inte
+on iso.nro_intervencion = inte.nro_intervencion
+left join tematica as te
+on inte.cod_tematica = te.cod_tematica;
+
+#----------------EJERCICIO 09---------------#
+Listado de temáticas existentes, y cantidad de intervenciones asociadas, aquellas temáticas que no tengan intervenciones asociadas 
+mostrar 0.Ordenado por la descripción de temática
+
+select te.desc_tematica, ifnull(count(inte.nro_intervencion),0) as CantidadDeIntervencionesAsociadas
+from tematica as te
+left join intervenciones as inte
+on te.cod_tematica = inte.cod_tematica
+group by 1
+order by 1;
+
+#----------------EJERCICIO 10---------------#
+(TRAN) La persona con DNI: 1.532.636 que pertenecía al grupo familiar 1 a partir del 1/1/2010 dejó de pertenecer al mismo el 13/1/2010 y
+pasó a pertenecer al grupo 3 (ya existente) el mismo día. Realizar los registros correspondientes.
+
+start transaction;
+
+update grupo_personas 
+set fecha_hasta = '2010-01-13'
+where id_grupo= 1 and tipo_doc = 'DNI' and nro_doc = 1532636 and fecha_desde = '2010-01-01';
+
+insert into grupo_personas
+values(3,'DNI',1532636,'2010-01-13',NULL);
+
+commit;
+
+#----------------EJERCICIO 11---------------# DIFICIL
+Listado de las soluciones comprometidas para el nro de intervención 3, indicando además datos de la intervención, del grupo y las 
+personas que pertenecen al grupo en el momento de solicitar la intervención mostrando: nro_intervención, Desc de temática, descripción 
+del grupo, descr solución, nombre y apellido de las personas pertenecientes al grupo. NOTA: La persona con DNI: 1.532.636 no pertenece 
+al grupo en la fecha de la intervención
+
+ select inte.nro_intervencion,
+		    tem.desc_tematica,
+        gf.descripcion,
+        sol.descr_solucion,
+        per.nombre,
+        per.apellido
+from intervenciones_soluciones as iso
+inner join intervenciones as inte
+on iso.nro_intervencion = inte.nro_intervencion
+inner join tematica as tem 
+on inte.cod_tematica = tem.cod_tematica
+inner join soluciones as sol
+on iso.cod_solucion = sol.cod_solucion
+inner join grupo_familiar as gf
+on inte.id_grupo =  gf.id_grupo
+inner join grupo_personas as gp
+on gf.id_grupo = gp.id_grupo
+inner join personas as per
+on gp.tipo_doc = per.tipo_doc and gp.nro_doc = per.nro_doc
+where iso.nro_intervencion = 3 AND gp.fecha_desde = (
+						            SELECT MIN(gfp.fecha_desde)
+                        FROM `grupo_personas` gfp
+                        WHERE gfp.`id_grupo` = gp.`id_grupo` 
+                        AND gfp.`tipo_doc` = gp.tipo_doc
+						            AND gfp.`nro_doc` = gp.nro_doc
+						            AND gfp.`fecha_desde` <= inte.fecha
+                        AND (gfp.`fecha_hasta` >=inte.fecha OR gfp.fecha_hasta IS NULL)
+						            GROUP BY gfp.`id_grupo`, gfp.`tipo_doc`, gfp.`nro_doc`);
+
+#----------------EJERCICIO 12---------------#
+Mostrar por cada seguimiento el nro de intervención, solución, observación y fecha de entrega solamente del renglón correspondiente 
+a la máxima fecha de entrega
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select seg.nro_intervencion, seg.cod_solucion, seg.fecha_compromiso, max(seg.fecha_entrega) as fecha
+from seguimiento as seg
+group by 1,2,3;
+
+select seg.nro_intervencion, seg.cod_solucion, seg.observacion, seg.fecha_entrega
+from ultfec as ult
+inner join seguimiento as seg
+on  ult.nro_intervencion = seg.nro_intervencion 
+    and ult.cod_solucion = seg.cod_solucion 
+    and ult.fecha_compromiso = seg.fecha_compromiso 
+    and ult.fecha = seg.fecha_entrega;
+
+#----------------EJERCICIO 13---------------#
+(TRAN) A todas las intervenciones del 2010 darlas de baja, con fecha = 31/12/2010
+
+start transaction;
+
+update intervenciones
+set fecha_baja = '2010-12-31'
+where year(fecha) = 2010;
+
+commit;

@@ -1,0 +1,212 @@
+#---------------EJERCICIO 01---------------#
+Listado de barcos ingresados en el día de la fecha, indicando id_barco, características, tipo de barco, mercancía que transporta y 
+razón social de la empresa consignataria.
+
+select bar.id_barco, bar.caracteristicas, tb.desc_tipo_barco, mer.desc_mercancia, emp.razon_social
+from barcos as bar
+inner join registros_entrada as reg
+on bar.id_barco = reg.id_barco
+inner join tipos_barcos as tb
+on bar.cod_tipo_barco = tb.cod_tipo_barco
+inner join empresas_consignatarias as emp
+on bar.id_empresa = emp.id_empresa
+inner join mercancias as mer
+on reg.cod_mercancia = mer.cod_mercancia
+where reg.fecha_atraque = '2010-09-22';
+
+#---------------EJERCICIO 02---------------#
+Indicar los servicios que hayan sido solicitados más de 10 veces. Indicar código y descripción del servicio y cantidad de 
+veces solicitados.
+
+select ser.cod_servicio, ser.desc_servicio, count(*) as CantidadSol
+from servicios as ser
+inner join albaran as alb
+on ser.cod_servicio = alb.cod_servicio
+group by 1,2
+having count(*) > 10;
+
+#---------------EJERCICIO 03---------------#
+Importe total de todos los albaranes generados que se hayan iniciado este mes hasta el día de hoy. El costo del albarán debe calcularse 
+en función de los materiales utilizados para cada servicio del mismo. Utilizar los precios de materiales al día de la fecha.
+
+drop temporary table if exists ultfec;
+create temporary table ultfec
+select mp.cod_material, max(mp.fecha) as fecha
+from materiales_precios as mp
+where mp.fecha <= '2019-09-21' 
+group by 1;
+
+select round(sum(am.cantidad*mp.valor),2) as ImporteTotal
+from albaran as alb
+inner join albaran_materiales as am
+on alb.id_barco = am.id_barco and alb.nro_registro = am.nro_registro and alb.cod_servicio = am.cod_servicio
+inner join materiales_precios as mp
+on am.cod_material = mp.cod_material 
+inner join ultfec as ult
+on mp.cod_material = ult.cod_material and mp.fecha = ult.fecha
+where alb.fecha_inicio >= '2010-09-01' and alb.fecha_inicio <= '2010-09-21';
+
+#---------------EJERCICIO 04---------------#
+Indicar los servicios que hayan sido solicitados una cantidad de veces menor o igual que el promedio de solicitudes de servicios por 
+servicio. Indicar descripción del servicio y cantidad de veces que fue solicitado. Ayuda: Algunos servicios pueden no haber sido 
+solicitados nunca.
+
+drop temporary table if exists cantsol;
+create temporary table cantsol
+select ser.cod_servicio, count(alb.cod_servicio) as totalSol
+from servicios as ser
+left join albaran as alb
+on ser.cod_servicio = alb.cod_servicio
+group by 1;
+
+select sum(cantsol.totalSol) / count(*) into @prom
+from cantsol;
+
+select ser.desc_servicio, count(alb.cod_servicio) as CantidadSol
+from servicios as ser
+left join albaran as alb
+on ser.cod_servicio = alb.cod_servicio
+group by 1
+having count(alb.cod_servicio)<= @prom;
+
+#---------------EJERCICIO 05---------------#
+Listar los servicios solicitados indicando código del servicio, descripción del servicio, fecha de inicio. Si algún servicio nunca fue 
+solicitado mostrar la leyenda “servicio nunca solicitado” en lugar de la fecha de inicio.
+
+select ser.cod_servicio, ser.desc_servicio, ifnull(alb.fecha_inicio,'Servivio nunca solicitado')
+from servicios as ser
+left join albaran as alb
+on ser.cod_servicio = alb.cod_servicio;
+
+#---------------EJERCICIO 06---------------#
+Calcular el porcentaje de registros de entrada de cada tipo de barco sobre el total de entradas. Indicar por cada tipo de barco cantidad 
+de registros de entrada y porcentaje sobre el total
+
+select count(*) into @totalregistros
+from registros_entrada;
+
+select tb.cod_tipo_barco, tb.desc_tipo_barco, count(*) as CantidadEntradas, round((count(*) * 100 / @totalRegistros),2) as '%SobreElTotal'
+from tipos_barcos as tb
+inner join barcos as bar 
+on tb.cod_tipo_barco = bar.cod_tipo_barco
+inner join registros_entrada as reg
+on bar.id_barco = reg.id_barco
+group by 1,2
+
+#---------------EJERCICIO 07---------------#
+Mercancías que hayan ingresado al puerto este mes pero no el mes pasado. Considerar la fecha de atraque del barco como fecha de 
+ingreso de la mercadería.
+
+select distinct mer.cod_mercancia, mer.desc_mercancia
+from registros_entrada as reg
+inner join mercancias as mer
+on reg.cod_mercancia = mer.cod_mercancia
+where month(reg.fecha_atraque) = 09 and year(reg.fecha_atraque) = 2010 and reg.cod_mercancia not in(
+	select distinct reg.cod_mercancia
+	from registros_entrada as reg
+	where month(reg.fecha_atraque) = 08 and year(reg.fecha_atraque) = 2010);
+
+#---------------EJERCICIO 08---------------#
+Barcos a los que aún no se les haya prestado el servicio de ‘grúas’ -habiéndolo solicitado- indicando nombre del barco, razón social de 
+la empresa consignataria, nro. de registro de entrada, código del servicio y descripción del servicio.
+
+select bar.nombre_barco, emp.razon_social,alb.nro_registro, ser.cod_servicio, ser.desc_servicio
+from barcos as bar 
+inner join empresas_consignatarias as emp
+on bar.id_empresa = emp.id_empresa
+inner join albaran as alb
+on alb.id_barco = bar.id_barco
+inner join servicios as ser
+on alb.cod_servicio = ser.cod_servicio
+where alb.fecha_fin is null and ser.desc_servicio = 'grúas';
+
+#---------------EJERCICIO 09---------------#
+El id. barco 987 con fecha de atraque 13 de septiembre del corriente año se retira del puerto. Calcular el importe de su factura en 
+concepto de atraque a la fecha del día.
+
+select datediff('2010-09-22',reg.fecha_atraque) into @diasAtraque
+from registros_entrada as reg
+where reg.id_barco = 987;
+
+select max(adv.fecha_desde) into @maxFec
+from atraque_diario_valores as adv
+where adv.fecha_desde <= '2010-09-22';
+
+select round(@diasAtraque*adv.monto,2) as importeTotalAtraque
+from atraque_diario_valores as adv
+where adv.fecha_desde = @maxFec and @diasAtraque >= adv.dias_desde and @diasAtraque <= adv.dias_hasta;
+
+#---------------EJERCICIO 10---------------#
+Ranking de empresas consignatarias. Listar para cada empresa cuántos barcos ingresaron al puerto. Indicar Id_empresa, razón social, país
+y cantidad de barcos que ingresaron, ordenado en forma descendente por cantidad de barcos y ascendente por razón social. 
+Ayuda: pueden existir empresas consignatarias que aun no hayan ingresado barcos al puerto.
+
+select emp.id_empresa, emp.razon_social, emp.pais, ifnull(count(reg.nro_registro),0) as CantidadRegistros
+from empresas_consignatarias as emp
+left join barcos as bar 
+on emp.id_empresa = bar.id_empresa
+left join registros_entrada as reg
+on bar.id_barco = reg.id_barco
+group by 1,2,3
+order by 4 desc, 2 asc;
+
+#---------------EJERCICIO 11---------------#
+Listar para cada registro de entrada, para cada material que debió utilizarse en cualquiera de los servicios solicitados, cuantas veces 
+no fueron utilizados. Indicar id de barco, nombre del barco, nro de registro, código del material, descripción del material y cantidad 
+de veces que no fue utilizado el material requerido
+
+select bar.id_barco, bar.nombre_barco, reg.nro_registro, mat.cod_material, mat.desc_material, count(*) CantidadVecesQueNoSeUsaron
+from registros_entrada as reg
+inner join barcos as bar
+on reg.id_barco = bar.id_barco
+inner join albaran as alb
+on reg.nro_registro = alb.nro_registro and reg.id_barco = alb.id_barco
+inner join servicios_materiales as sm
+on alb.cod_servicio = sm.cod_servicio
+inner join materiales as mat
+on sm.cod_material = mat.cod_material
+left join albaran_materiales as am
+on alb.nro_registro = am.nro_registro 
+and alb.id_barco = am.id_barco 
+and alb.cod_servicio = am.cod_servicio 
+and sm.cod_material = am.cod_material
+where am.cod_material is null
+group by 1,2,3,4,5;
+
+#---------------EJERCICIO 12---------------#
+(TRAN) Registrar un nuevo material, su valor a la fecha de hoy y los servicios en los que será utilizado Cod_material: 1000, 
+desc_material: anclas tipo 3, fabricante: luraschi, stock: 100, punto de pedido: 50, cuit_proveedor: 11-11111111-1, valor: 150
+Este material será utilizado en los servicios: 2 y 4
+
+start transaction;
+
+insert into materiales
+values(1000, 'Anclas tipo 3', 'luraschi', 100, 50, '11-11111111-1');
+
+insert into materiales_precios
+values(1000,current_date,150);
+
+insert into servicios_materiales
+values (1000,2);
+insert into servicios_materiales
+values (1000,4);
+
+commit;
+
+#---------------EJERCICIO 13---------------#
+(TRAN) Debido a que la empresa se está quedando sin stock en forma continua ha decidido aumentar los puntos de pedido según las 
+siguientes reglas:
+a. Si el punto de pedido es menor a 50 aumentar un 30%
+b. Si el punto de pedido es mayor o igual a 50 aumentar un 10%
+
+start transaction;
+
+update materiales
+set punto_pedido = punto_pedido * 1.10
+where punto_pedido >= 50;
+
+update materiales
+set punto_pedido = punto_pedido * 1.30
+where punto_pedido < 50;
+
+commit;
